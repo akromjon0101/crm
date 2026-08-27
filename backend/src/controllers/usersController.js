@@ -61,6 +61,15 @@ const createUser = async (req, res) => {
     if (!name || !email || !password || !role) {
       return res.status(400).json({ message: 'Name, email, password and role are required' });
     }
+    if (password.length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters' });
+    }
+    // Privilege-escalation guard: only a superadmin may create admin/superadmin
+    // accounts. Without this, an 'admin' caller (also authorized on this route)
+    // could grant themselves or anyone else superadmin access.
+    if (['admin', 'superadmin'].includes(role) && req.user.role !== 'superadmin') {
+      return res.status(403).json({ message: 'Only a superadmin can create admin or superadmin accounts' });
+    }
     const existing = await query('SELECT id FROM users WHERE email = ?', [email.toLowerCase()]);
     if (existing.rows[0]) return res.status(400).json({ message: 'Email already in use' });
 
@@ -79,6 +88,20 @@ const createUser = async (req, res) => {
 const updateUser = async (req, res) => {
   try {
     const { name, email, role, phone, subject, is_active, salary_per_student } = req.body;
+
+    // Same privilege-escalation guard as createUser: a non-superadmin 'admin'
+    // (also authorized on this route) must not be able to promote a user to
+    // admin/superadmin, or demote/alter an existing superadmin.
+    if (req.user.role !== 'superadmin') {
+      if (['admin', 'superadmin'].includes(role)) {
+        return res.status(403).json({ message: 'Only a superadmin can grant admin or superadmin access' });
+      }
+      const target = await query('SELECT role FROM users WHERE id = ?', [req.params.id]);
+      if (target.rows[0]?.role === 'superadmin') {
+        return res.status(403).json({ message: 'Only a superadmin can modify a superadmin account' });
+      }
+    }
+
     const result = await query(
       `UPDATE users SET name=?, email=?, role=?, phone=?, subject=?, is_active=?, salary_per_student=?, updated_at=datetime('now')
        WHERE id=? RETURNING id, name, email, role, phone, subject, is_active, salary_per_student`,
@@ -93,6 +116,9 @@ const updateUser = async (req, res) => {
 
 const deleteUser = async (req, res) => {
   try {
+    if (String(req.params.id) === String(req.user.id)) {
+      return res.status(400).json({ message: 'You cannot delete your own account' });
+    }
     const result = await query('DELETE FROM users WHERE id = ? RETURNING id', [req.params.id]);
     if (!result.rows[0]) return res.status(404).json({ message: 'User not found' });
     res.json({ message: 'User deleted successfully' });
@@ -104,6 +130,9 @@ const deleteUser = async (req, res) => {
 const resetPassword = async (req, res) => {
   try {
     const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters' });
+    }
     const hashed = await bcrypt.hash(newPassword, 10);
     await query('UPDATE users SET password = ? WHERE id = ?', [hashed, req.params.id]);
     res.json({ message: 'Password reset successfully' });

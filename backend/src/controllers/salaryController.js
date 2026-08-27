@@ -124,11 +124,10 @@ const upsertSalaryRule = async (req, res) => {
 // ── POST /api/salary/calculate ─────────────────────────────────────────────────
 /**
  * Calculate and persist salary records for every active teacher for the given
- * month + year.  Existing records are replaced (INSERT OR REPLACE triggers the
- * UNIQUE(teacher_id, month, year) conflict resolution in SQLite).
- *
- * After INSERT OR REPLACE we do a follow-up SELECT because INSERT OR REPLACE
- * is not detected as RETURNING-bearing by the query() helper.
+ * month + year. Records already marked 'paid' are left untouched; existing
+ * unpaid records are updated in place (preserving any manual bonus_amount/
+ * deductions); new records are inserted otherwise. A follow-up SELECT fetches
+ * the persisted row so the response shape is consistent either way.
  */
 const calculateSalary = async (req, res) => {
   try {
@@ -230,25 +229,50 @@ const calculateSalary = async (req, res) => {
       const advancePaid = parseFloat(advanceResult.rows[0].advance_total) || 0;
 
       // 6. Final salary = gross - advance deductions (floor at 0)
-      const finalSalary = Math.max(0, baseSalary - advancePaid);
-
-      // 7. Persist — INSERT OR REPLACE handles the UNIQUE(teacher_id, month, year)
-      //    constraint.  We pass 0 for bonus_amount and deductions; those can be
-      //    adjusted manually via PUT /records/:id after calculation.
-      await query(
-        `INSERT OR REPLACE INTO teacher_salaries
-           (teacher_id, month, year, method,
-            base_amount, bonus_amount, deductions, advance_paid, final_salary,
-            lessons_count, students_total_paid,
-            status, calculated_by, updated_at)
-         VALUES (?,?,?,?,?,0,0,?,?,?,?,'pending',?,datetime('now'))`,
-        [
-          teacher.id, m, y, teacher.method,
-          baseSalary, advancePaid, finalSalary,
-          lessonsCount, totalPaid,
-          req.user.id,
-        ]
+      // 7. Persist. NOTE: this used to be `INSERT OR REPLACE`, which — like the
+      //    id-reset problem upsertSalaryRule avoids above — silently wiped any
+      //    manually-set status/bonus_amount/deductions/paid_date back to their
+      //    defaults every time salary was recalculated for a month. That meant
+      //    re-running calculation after marking a teacher's salary "paid" would
+      //    quietly revert it to "pending" and erase the paid_date. We now check
+      //    for an existing record first, skip already-paid records entirely
+      //    (finalized payroll must not be touched by recalculation), and
+      //    otherwise UPDATE only the calculation-derived fields while
+      //    preserving any manual bonus_amount/deductions adjustment.
+      const existingRecord = await query(
+        'SELECT * FROM teacher_salaries WHERE teacher_id = ? AND month = ? AND year = ?',
+        [teacher.id, m, y]
       );
+      const existing = existingRecord.rows[0];
+
+      if (existing?.status === 'paid') {
+        calculated.push({ ...existing, teacher_name: teacher.name, skipped: true });
+        continue;
+      }
+
+      const bonusAmount = existing?.bonus_amount || 0;
+      const deductions  = existing?.deductions || 0;
+      const finalSalary = Math.max(0, baseSalary + bonusAmount - advancePaid - deductions);
+
+      if (existing) {
+        await query(
+          `UPDATE teacher_salaries
+             SET method=?, base_amount=?, advance_paid=?, final_salary=?,
+                 lessons_count=?, students_total_paid=?, calculated_by=?, updated_at=datetime('now')
+           WHERE id=?`,
+          [teacher.method, baseSalary, advancePaid, finalSalary, lessonsCount, totalPaid, req.user.id, existing.id]
+        );
+      } else {
+        await query(
+          `INSERT INTO teacher_salaries
+             (teacher_id, month, year, method,
+              base_amount, bonus_amount, deductions, advance_paid, final_salary,
+              lessons_count, students_total_paid,
+              status, calculated_by, updated_at)
+           VALUES (?,?,?,?,?,0,0,?,?,?,?,'pending',?,datetime('now'))`,
+          [teacher.id, m, y, teacher.method, baseSalary, advancePaid, finalSalary, lessonsCount, totalPaid, req.user.id]
+        );
+      }
 
       // Fetch the persisted row to return consistent data
       const savedResult = await query(
