@@ -1,6 +1,8 @@
 # CRM Project — Bug Report
-**Generated:** May 30, 2026  
-**Status:** Running on Backend:5002, Frontend:5175
+**Generated:** May 30, 2026
+**Updated:** August 27, 2026 — all items below fixed, plus additional issues
+found in a follow-up full-codebase audit (see note at bottom).
+**Status:** Running on Backend:5001, Frontend:5173
 
 ---
 
@@ -296,16 +298,27 @@ console.error('[StudentController]', err.message);
 
 | ID | Bug | File | Severity | Status |
 |----|----|------|----------|--------|
-| 1 | Analytics map null crash | Analytics.jsx:55 | 🔴 CRITICAL | ❌ UNFIXED |
-| 2 | StudentProfile no error on payment | StudentProfile.jsx:122 | 🔴 CRITICAL | ❌ UNFIXED |
-| 3 | Payment response structure mismatch | Multiple | 🟠 HIGH | ⚠️ INCONSISTENT |
-| 4 | SMS phone not normalized in ops | studentsController.js:246 | 🟠 HIGH | ❌ UNFIXED |
-| 5 | Unfreeze group validity check missing | studentsController.js:284 | 🟠 HIGH | ❌ UNFIXED |
-| 6 | Dashboard API failures silent | Dashboard.jsx:580 | 🟠 HIGH | ❌ UNFIXED |
-| 7 | useApi hook race condition | useApi.js:30 | 🟡 MEDIUM | ⚠️ RISKY |
-| 8 | Salary zero division edge case | billingCalculator.js | 🟡 MEDIUM | ❌ UNFIXED |
-| 9 | Debtor toggle no confirmation | Students.jsx:344 | 🟡 MEDIUM | ❌ UNFIXED |
-| 10 | Error logging not structured | Multiple | 🟢 LOW | ⚠️ MINOR |
+| 1 | Analytics map null crash | Analytics.jsx:55 | 🔴 CRITICAL | ✅ FIXED |
+| 2 | StudentProfile no error on payment | StudentProfile.jsx:122 | 🔴 CRITICAL | ✅ FIXED |
+| 3 | Payment response structure mismatch | Multiple | 🟠 HIGH | ✅ Already defensive (`res.data?.data \|\| res.data \|\| []`) — no change needed |
+| 4 | SMS phone not normalized in ops | studentsController.js:246 | 🟠 HIGH | ✅ FIXED (also fixed updateStudent, which had the same gap) |
+| 5 | Unfreeze group validity check missing | studentsController.js:284 | 🟠 HIGH | ✅ FIXED |
+| 6 | Dashboard API failures silent | Dashboard.jsx:580 | 🟠 HIGH | ✅ FIXED (Promise.allSettled) |
+| 7 | useApi hook race condition | useApi.js:30 | 🟡 MEDIUM | ✅ FIXED (request-id guard) |
+| 8 | Salary zero division edge case | billingCalculator.js | 🟡 MEDIUM | ✅ FIXED (maxLessons guard) |
+| 9 | Debtor toggle no confirmation | Students.jsx:344 | 🟡 MEDIUM | ✅ FIXED |
+| 10 | Error logging not structured | Multiple | 🟢 LOW | ✅ FIXED (all controllers) |
+
+## Additional bugs found in the Aug 27, 2026 follow-up audit
+
+| Bug | File | Severity | Status |
+|----|------|----------|--------|
+| Global 401 interceptor hijacked failed login attempts — wiped the error message via a forced reload of `/login` | frontend/src/services/api.js | 🔴 CRITICAL | ✅ FIXED |
+| `/api/leads/*` had no role check — any authenticated user (e.g. teacher) could call it directly, bypassing the frontend's admin-only restriction | backend/src/routes/leads.js | 🟠 HIGH | ✅ FIXED |
+| `POST /students/:id/notes` was admin-only, but the frontend lets every role add notes (credited via `req.user.id`) — teachers got 403s | backend/src/routes/students.js | 🟠 HIGH | ✅ FIXED |
+| nodemon watched SQLite WAL files (`*.db-shm`/`*.db-wal`), restarting on every DB write — caused EADDRINUSE crash loops under load | backend/package.json | 🟡 MEDIUM | ✅ FIXED |
+| Stale nested `frontend/.git` (old CRA-era repo, no remote) would have blocked the root repo from tracking frontend files | frontend/ | 🟡 MEDIUM (repo hygiene) | ✅ FIXED |
+| Unused empty `backend/src/config/database.sqlite` (app actually reads `backend/crm.db`) | backend/src/config/ | 🟢 LOW | ✅ FIXED |
 
 ---
 
@@ -329,8 +342,13 @@ console.error('[StudentController]', err.message);
 ---
 
 **Note:** Servers running successfully:
-- ✅ Backend API: http://localhost:5002 
-- ✅ Frontend: http://localhost:5175
+- ✅ Backend API: http://localhost:5001
+- ✅ Frontend: http://localhost:5173
 - ✅ Database schema initialized with migrations
 
-Would you like me to fix any of these bugs now?
+**Update (Aug 27, 2026):** All bugs above, plus the 6 additional ones found
+in the follow-up audit, are fixed. Verified via `npm run build` (frontend,
+clean) and `node src/utils/billingCalculator.js` (backend, all 20 unit
+tests pass), plus manual end-to-end checks of login, the leads permission
+fix, and the teacher-notes permission fix. The project is committed to a
+fresh local git repo (`git log`) and ready to push once a remote is added.
