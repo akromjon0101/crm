@@ -1,18 +1,51 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const compression = require('compression');
 require('dotenv').config();
+
+// ── Startup safety checks ────────────────────────────────────────────────────
+// Refuse to boot in production with the placeholder secret from .env.example —
+// every deployed instance would otherwise share the same publicly-known JWT
+// signing key, letting anyone forge valid tokens for any user.
+if (process.env.NODE_ENV === 'production') {
+  const insecureDefaults = ['your_super_secret_jwt_key_change_this_in_production', ''];
+  if (!process.env.JWT_SECRET || insecureDefaults.includes(process.env.JWT_SECRET)) {
+    console.error('FATAL: JWT_SECRET is unset or still the placeholder value. Set a strong, unique secret in .env before starting in production (e.g. `openssl rand -base64 48`).');
+    process.exit(1);
+  }
+  if (!process.env.CLIENT_URL) {
+    console.error('FATAL: CLIENT_URL must be set in production so CORS can allow your deployed frontend origin.');
+    process.exit(1);
+  }
+}
 
 const app = express();
 
-// Middleware
+// Behind an Nginx reverse proxy on a VPS: trust the first hop so req.ip and
+// express-rate-limit see the real client IP (from X-Forwarded-For) instead of
+// 127.0.0.1 for every request.
+app.set('trust proxy', 1);
+
+// ── Middleware ────────────────────────────────────────────────────────────────
+app.use(helmet());
+app.use(compression());
+
+// In production only the configured CLIENT_URL is allowed; localhost origins
+// are for local development only and would be pointless (and slightly risky)
+// to keep open on a public deployment.
+const corsOrigins = process.env.NODE_ENV === 'production'
+  ? [process.env.CLIENT_URL]
+  : [
+      process.env.CLIENT_URL || 'http://localhost:5173',
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'http://localhost:5175',
+      'http://localhost:3000',
+    ];
+
 app.use(cors({
-  origin: [
-    process.env.CLIENT_URL || 'http://localhost:5173',
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:5175',
-    'http://localhost:3000',
-  ],
+  origin: corsOrigins,
   credentials: true,
 }));
 app.use(express.json());

@@ -414,23 +414,49 @@ function runMigrations(db) {
   }
 
   // ── Migration 012: create superadmin account ───────────────────────────
+  // SECURITY: this used to unconditionally create 'superadmin@crm.uz' with a
+  // hardcoded bcrypt hash for the password "password" — meaning every fresh
+  // deployment of this app, including production, got the exact same
+  // publicly-known admin login with zero configuration. That's a live
+  // backdoor the moment this code reaches a real server.
+  //
+  // In production, the account is only created if INITIAL_SUPERADMIN_EMAIL
+  // and INITIAL_SUPERADMIN_PASSWORD are explicitly set in the environment
+  // (see backend/.env.example and DEPLOY.md); otherwise this step is skipped
+  // and a warning is logged — use `node create-admin.js` instead. Outside
+  // production, the old zero-config default is kept for local dev/demo
+  // convenience, matching README.md and BUG_REPORT.md.
   if (!hasRun.get('012_create_superadmin')) {
     console.log('[migration] 012_create_superadmin — running…');
     db.transaction(() => {
       const bcrypt = require('bcryptjs');
-      const hashedPassword = bcrypt.hashSync('password', 10);
-      
+      const isProd = process.env.NODE_ENV === 'production';
+
+      const email    = isProd ? process.env.INITIAL_SUPERADMIN_EMAIL    : 'superadmin@crm.uz';
+      const password = isProd ? process.env.INITIAL_SUPERADMIN_PASSWORD : 'password';
+
+      if (isProd && (!email || !password || password.length < 8)) {
+        console.warn(
+          '[migration] 012_create_superadmin — skipped: set INITIAL_SUPERADMIN_EMAIL and ' +
+          'INITIAL_SUPERADMIN_PASSWORD (>=8 chars) in .env to auto-create the first admin, ' +
+          'or run `node create-admin.js` to create one interactively.'
+        );
+        record.run(12, '012_create_superadmin');
+        return;
+      }
+
       const existingSuperadmin = db.prepare(
         'SELECT id FROM users WHERE email = ? AND role = ?'
-      ).get('superadmin@crm.uz', 'superadmin');
-      
+      ).get(email, 'superadmin');
+
       if (!existingSuperadmin) {
+        const hashedPassword = bcrypt.hashSync(password, 10);
         db.prepare(
           'INSERT INTO users (name, email, password, role, phone, subject, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)'
-        ).run('CEO', 'superadmin@crm.uz', hashedPassword, 'superadmin', '+998901000000', null, 1);
-        console.log('[migration] 012_create_superadmin — superadmin account created ✓');
+        ).run('CEO', email, hashedPassword, 'superadmin', '+998901000000', null, 1);
+        console.log(`[migration] 012_create_superadmin — superadmin account created (${email}) ✓`);
       }
-      
+
       record.run(12, '012_create_superadmin');
     })();
     console.log('[migration] 012_create_superadmin — done ✓');

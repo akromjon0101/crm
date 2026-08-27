@@ -160,11 +160,10 @@ CREATE TRIGGER update_students_updated_at BEFORE UPDATE ON students FOR EACH ROW
 -- SEED DATA
 -- ============================================================
 
--- Default superadmin (password: admin123)
--- Default password: "password"
-INSERT INTO users (name, email, password, role, phone) VALUES
-('Super Admin', 'superadmin@crm.uz', '$2a$10$m0whFgr.3uB3b6UaTSTkCuW8KS6d7ZY5HN/tqlsHNgSsEaKhZgaJ2', 'superadmin', '+998901234567')
-ON CONFLICT (email) DO NOTHING;
+-- NOTE: no superadmin is seeded here with a hardcoded password. This used to
+-- insert a static bcrypt hash for the password "password" directly into the
+-- schema, meaning every deployment got the same publicly-known admin login.
+-- Create the first admin via backend/create-admin.js instead (see DEPLOY.md).
 
 -- Sample courses
 INSERT INTO courses (name, description, duration_months, monthly_fee) VALUES

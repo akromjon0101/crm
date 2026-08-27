@@ -108,9 +108,14 @@ CREATE INDEX IF NOT EXISTS idx_payments_student_id ON payments(student_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_student_id ON attendance(student_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_group_id ON attendance(group_id);
 
--- Seed: Super Admin (password: password)
-INSERT OR IGNORE INTO users (name, email, password, role, phone)
-VALUES ('Super Admin', 'superadmin@crm.uz', '$2a$10$m0whFgr.3uB3b6UaTSTkCuW8KS6d7ZY5HN/tqlsHNgSsEaKhZgaJ2', 'superadmin', '+998901234567');
+-- NOTE: the initial superadmin account is intentionally NOT seeded here with a
+-- hardcoded password. That used to insert 'superadmin@crm.uz' with a static
+-- bcrypt hash for the password "password" directly into the schema — meaning
+-- every fresh deployment of this app (including production) got the same
+-- publicly-known admin login automatically. See migrations.js migration
+-- 012_create_superadmin and backend/create-admin.js for how the account is
+-- created now (env-var driven in production, dev-convenience default only
+-- outside production).
 
 -- Seed: Courses
 INSERT OR IGNORE INTO courses (id, name, description, duration_months, monthly_fee) VALUES

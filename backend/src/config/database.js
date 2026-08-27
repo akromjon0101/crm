@@ -2,7 +2,17 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-const DB_PATH = path.join(__dirname, '../../crm.db');
+// Honor DB_PATH from .env (useful on a VPS to keep the database file outside
+// the deployed code directory, e.g. /var/lib/educrm/crm.db, so redeploys and
+// `git pull` never risk touching it). Falls back to the historical location.
+const DB_PATH = process.env.DB_PATH
+  ? path.resolve(process.env.DB_PATH)
+  : path.join(__dirname, '../../crm.db');
+
+// better-sqlite3 throws if the parent directory doesn't exist yet — create it
+// so a custom DB_PATH (e.g. a fresh /var/lib/educrm/) doesn't need a manual
+// mkdir before the first run.
+fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
 const db = new Database(DB_PATH);
 

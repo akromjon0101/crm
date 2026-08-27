@@ -1,0 +1,55 @@
+# EduCRM — Nginx site config template for a VPS deployment.
+#
+# Serves the built frontend (frontend/dist) as static files and reverse-proxies
+# /api/* to the backend (PM2-managed Node process on 127.0.0.1:5001). Same
+# origin means the browser never needs CORS for normal use.
+#
+# Install:
+#   sudo cp deploy/nginx.conf.example /etc/nginx/sites-available/educrm
+#   sudo ln -s /etc/nginx/sites-available/educrm /etc/nginx/sites-enabled/
+#   sudo nginx -t && sudo systemctl reload nginx
+#
+# Then get a real cert (replace the placeholder domain first):
+#   sudo certbot --nginx -d crm.example.com
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name crm.example.com;
+
+    # Path to the frontend's production build. Update if you clone the repo
+    # somewhere other than /var/www/educrm.
+    root /var/www/educrm/frontend/dist;
+    index index.html;
+
+    client_max_body_size 10M;
+
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+    gzip_min_length 1024;
+
+    # API — proxied to the PM2-managed backend.
+    location /api/ {
+        proxy_pass http://127.0.0.1:5001;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Static assets — hashed filenames from the Vite build, safe to cache hard.
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # SPA fallback — client-side routing (React Router) owns every other path.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+
+# After running certbot above, it will add its own `listen 443 ssl` server
+# block (and a port-80-to-443 redirect) to this file automatically — no
+# manual edits needed for that part.
