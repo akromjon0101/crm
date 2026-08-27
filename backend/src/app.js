@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 // ── Startup safety checks ────────────────────────────────────────────────────
@@ -50,6 +51,20 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// General API rate limit — a coarse safety net against abuse/DoS on every
+// endpoint, not just login (which already has its own tighter limiter in
+// routes/auth.js). Generous enough not to bother normal CRM usage.
+app.use('/api', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many requests. Please try again shortly.' },
+  // Health checks (uptime monitors, load balancers) shouldn't count against
+  // real traffic — they can legitimately poll every few seconds.
+  skip: (req) => req.path === '/api/health',
+}));
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));

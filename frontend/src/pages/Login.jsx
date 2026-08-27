@@ -103,35 +103,6 @@ const Login = () => {
           </form>
         </div>
 
-        {/* Demo Accounts */}
-        <div className="mt-8">
-          <p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider text-center mb-4">Quick Access Demo</p>
-          <div className="flex flex-col gap-2.5">
-            {[
-              { label: 'CEO',     email: 'superadmin@crm.uz', color: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 border-violet-200 dark:border-violet-800' },
-              { label: 'Admin',   email: 'admin@crm.uz',      color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800' },
-              { label: 'Teacher', email: 'sarvar@crm.uz',     color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' },
-            ].map(({ label, email, color }) => (
-              <button
-                key={email}
-                type="button"
-                onClick={() => setForm({ email, password: 'password' })}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/60 dark:bg-slate-800/60 backdrop-blur-md border border-white/40 dark:border-slate-700/40 hover:bg-white dark:hover:bg-slate-800 transition-all hover:shadow-md group"
-              >
-                <span className={`text-[11px] font-extrabold px-2.5 py-1 rounded-lg border ${color}`}>
-                  {label}
-                </span>
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-300 font-mono flex-1 text-left">
-                  {email}
-                </span>
-                <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 group-hover:text-primary-500 transition-all duration-200 opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0">
-                  Select →
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-
       </div>
     </div>
   );

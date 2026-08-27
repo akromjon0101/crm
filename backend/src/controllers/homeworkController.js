@@ -1,10 +1,24 @@
 const { query } = require('../config/database');
 
+// Access control: a teacher may only see/create homework for groups they
+// actually teach (same rule already applied throughout attendanceController
+// and lessonsController). Admins/superadmins are unrestricted.
+const assertTeacherOwnsGroup = async (req, group_id) => {
+  if (req.user.role !== 'teacher') return null;
+  const g = await query('SELECT teacher_id FROM groups WHERE id = ?', [group_id]);
+  if (!g.rows[0]) return { status: 404, message: 'Group not found' };
+  if (g.rows[0].teacher_id !== req.user.id) return { status: 403, message: 'Access denied' };
+  return null;
+};
+
 // GET /api/homework?group_id=X
 const getHomework = async (req, res) => {
   try {
     const { group_id } = req.query;
     if (!group_id) return res.status(400).json({ message: 'group_id is required' });
+
+    const denied = await assertTeacherOwnsGroup(req, group_id);
+    if (denied) return res.status(denied.status).json({ message: denied.message });
 
     const result = await query(
       `SELECT h.*, u.name as teacher_name
@@ -27,6 +41,9 @@ const createHomework = async (req, res) => {
     if (!group_id || !title?.trim()) {
       return res.status(400).json({ message: 'group_id and title are required' });
     }
+
+    const denied = await assertTeacherOwnsGroup(req, group_id);
+    if (denied) return res.status(denied.status).json({ message: denied.message });
 
     const result = await query(
       `INSERT INTO homework (group_id, teacher_id, title, description, due_date)

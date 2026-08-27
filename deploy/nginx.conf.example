@@ -28,6 +28,13 @@ server {
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
     gzip_min_length 1024;
 
+    # Deny any dotfile (.env, .git, etc.) even though none should exist under
+    # the build output — defense in depth against a future misconfiguration.
+    location ~ /\. {
+        deny all;
+        return 404;
+    }
+
     # API — proxied to the PM2-managed backend.
     location /api/ {
         proxy_pass http://127.0.0.1:5001;

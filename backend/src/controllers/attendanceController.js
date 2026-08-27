@@ -68,6 +68,20 @@ const markAttendance = async (req, res) => {
       if (gRes.rows[0]) groupInfoMap[gid] = gRes.rows[0];
     }
 
+    // Access control: a teacher may only mark attendance for groups they
+    // actually teach. Without this, any authenticated teacher could submit
+    // records for another teacher's group_id — corrupting that group's
+    // attendance and, since attendance feeds lesson_students.price_earned,
+    // that other teacher's salary calculation too.
+    if (req.user.role === 'teacher') {
+      const foreignGroup = uniqueGroupIds.find(
+        (gid) => groupInfoMap[gid] && groupInfoMap[gid].teacher_id !== req.user.id
+      );
+      if (foreignGroup) {
+        return res.status(403).json({ message: 'You can only mark attendance for your own groups' });
+      }
+    }
+
     // Pre-fetch any existing lessons for (group_id, date) pairs in this batch.
     const lessonMap = {};
     for (const record of records) {
@@ -189,6 +203,16 @@ const getAttendanceByGroup = async (req, res) => {
     const { date } = req.query;
     const targetDate = date || new Date().toISOString().split('T')[0];
 
+    // Access control: teacher can only view own groups (same rule already
+    // applied to getAttendanceJournal and getAttendance).
+    if (req.user.role === 'teacher') {
+      const groupCheck = await query('SELECT teacher_id FROM groups WHERE id = ?', [req.params.groupId]);
+      if (!groupCheck.rows[0]) return res.status(404).json({ message: 'Group not found' });
+      if (groupCheck.rows[0].teacher_id !== req.user.id) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+    }
+
     const students = await query(
       `SELECT s.id, s.name, a.status, a.notes, a.id as attendance_id
        FROM students s
@@ -207,6 +231,20 @@ const getAttendanceByGroup = async (req, res) => {
 const getStudentAttendanceSummary = async (req, res) => {
   try {
     const { student_id } = req.params;
+
+    // Access control: teacher can only view attendance for students in their
+    // own group(s) — same rule as the other read endpoints above.
+    if (req.user.role === 'teacher') {
+      const studentCheck = await query(
+        `SELECT g.teacher_id FROM students s LEFT JOIN groups g ON g.id = s.group_id WHERE s.id = ?`,
+        [student_id]
+      );
+      if (!studentCheck.rows[0]) return res.status(404).json({ message: 'Student not found' });
+      if (studentCheck.rows[0].teacher_id !== req.user.id) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+    }
+
     const { month, year } = req.query;
     const params = [student_id];
     let conditions = 'WHERE student_id = ?';
