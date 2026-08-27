@@ -999,7 +999,10 @@ const CeoDashboard = () => {
       api.get('/payments/debtors'),
     ])
       .then(([e, d]) => {
-        setEarnings(e.data?.data || e.data || []);
+        // /earnings/overview returns { period, total_income, teachers: [...] } —
+        // not { data: [...] } like the paginated list endpoints — so the
+        // teachers array must be read from its own key, not .data.
+        setEarnings(e.data?.teachers || []);
         setDebtors(d.data?.data || d.data || []);
       })
       .catch(() => {})
