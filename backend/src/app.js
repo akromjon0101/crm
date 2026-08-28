@@ -32,11 +32,13 @@ app.set('trust proxy', 1);
 app.use(helmet());
 app.use(compression());
 
-// In production only the configured CLIENT_URL is allowed; localhost origins
-// are for local development only and would be pointless (and slightly risky)
-// to keep open on a public deployment.
+// In production only the configured CLIENT_URL origin(s) are allowed; localhost
+// origins are for local development only and would be pointless (and slightly
+// risky) to keep open on a public deployment. CLIENT_URL accepts a single
+// origin or a comma-separated list (e.g. both a Vercel *.vercel.app URL and a
+// custom domain during a DNS cutover).
 const corsOrigins = process.env.NODE_ENV === 'production'
-  ? [process.env.CLIENT_URL]
+  ? (process.env.CLIENT_URL || '').split(',').map((o) => o.trim()).filter(Boolean)
   : [
       process.env.CLIENT_URL || 'http://localhost:5173',
       'http://localhost:5173',
