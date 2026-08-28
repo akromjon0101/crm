@@ -90,6 +90,13 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Root — some deploy platforms' health checks default to "/" and don't read
+// this app's custom healthcheckPath config, so this must also return 2xx.
+// This is a backend-only API; the real frontend is served separately.
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', service: 'crm-backend' });
+});
+
 // 404
 app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' });
