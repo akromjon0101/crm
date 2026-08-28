@@ -46,14 +46,22 @@ const query = async (text, params = []) => {
 
 const getClient = () => ({ query, release: () => {} });
 
-// Initialize schema if DB is new
+// Initialize schema if DB is new.
+// This file lives inside backend/ (not the repo-root database/ folder) on
+// purpose — some deploy platforms (e.g. Railway with Root Directory set to
+// "backend") only ship the backend/ subtree to the running container, so a
+// path reaching outside it silently doesn't exist there, initSchema() would
+// no-op, and every migration after it fails with "no such table: ...".
 const initSchema = () => {
-  const schemaPath = path.join(__dirname, '../../../database/schema_sqlite.sql');
-  if (fs.existsSync(schemaPath)) {
-    const schema = fs.readFileSync(schemaPath, 'utf8');
-    db.exec(schema);
-    console.log('✅ Database schema initialized');
+  const schemaPath = path.join(__dirname, '../../database/schema_sqlite.sql');
+  if (!fs.existsSync(schemaPath)) {
+    // Fail loudly rather than silently booting with an empty database —
+    // that failure mode is much harder to diagnose (see the note above).
+    throw new Error(`Schema file not found at ${schemaPath}. The app cannot start without it.`);
   }
+  const schema = fs.readFileSync(schemaPath, 'utf8');
+  db.exec(schema);
+  console.log('✅ Database schema initialized');
 };
 
 initSchema();
