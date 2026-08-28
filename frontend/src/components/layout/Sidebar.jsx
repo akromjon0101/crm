@@ -64,14 +64,27 @@ const TEACHER_NAV = [
   { key: 'nav_settings',    path: '/settings',  icon: 'settings'               },
 ];
 
+// CEO (superadmin) sees everything an admin sees, plus CEO-exclusive pages
+// (finances, salary rules, teacher earnings overview). This used to be a much
+// shorter list missing Students/Groups/Teachers/Attendance/Schedule/Lessons/
+// Archive entirely — the highest-privileged role had less navigation than a
+// regular admin, even though every one of those routes already allows
+// superadmin (see roles={[...]} in App.jsx).
 const CEO_NAV = [
   { key: 'nav_dashboard',    path: '/',               icon: 'dashboard',   end: true },
+  { key: 'nav_students',     path: '/students',       icon: 'students'               },
+  { key: 'nav_groups',       path: '/groups',         icon: 'groups'                 },
+  { key: 'nav_teachers',     path: '/teachers',       icon: 'teachers'               },
+  { key: 'nav_attendance',   path: '/attendance',     icon: 'attendance'             },
+  { key: 'nav_schedule',     path: '/schedule',       icon: 'schedule'               },
+  { key: 'nav_lessons',      path: '/lessons',        icon: 'lessons'                },
   { key: 'nav_finances',     path: '/finances',       icon: 'finances'               },
-  { key: 'nav_analytics',    path: '/analytics',      icon: 'analytics'              },
   { key: 'nav_payments',     path: '/payments',       icon: 'payments'               },
+  { key: 'nav_analytics',    path: '/analytics',      icon: 'analytics'              },
   { key: 'nav_earnings',     path: '/admin-earnings', icon: 'earnings'               },
   { key: 'nav_salary_admin', path: '/salary-admin',   icon: 'salaryAdmin'            },
   { key: 'nav_leads',        path: '/leads',          icon: 'leads'                  },
+  { key: 'nav_archive',      path: '/archive',        icon: 'archive'                },
   { key: 'nav_settings',     path: '/settings',       icon: 'settings'               },
 ];
 
